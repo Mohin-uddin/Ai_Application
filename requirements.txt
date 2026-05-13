@@ -5,7 +5,7 @@ python-multipart==0.0.9
 python-dotenv==1.0.1
 pydantic==2.8.0
 fastapi
-"uvicorn[standard]"
+uvicorn[standard]
 google-generativeai
 python-multipart
 python-dotenv
