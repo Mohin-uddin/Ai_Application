@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Japan AI Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;700&family=Shippori+Mincho:wght@400;600;800&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink:#1a1209; --paper:#f5f0e8; --red:#c0392b;
+  --gold:#b8860b; --gold-light:#d4a017;
+  --ieyasu:#2c3e50; --hideyoshi:#8b2500;
+  --green:#27ae60;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Noto Serif JP',serif;background:var(--paper);color:var(--ink);min-height:100vh;}
+body::before{content:'';position:fixed;inset:0;background-image:repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(180,160,100,.1) 39px,rgba(180,160,100,.1) 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(180,160,100,.1) 39px,rgba(180,160,100,.1) 40px);pointer-events:none;z-index:0;}
+
+header{position:relative;z-index:10;text-align:center;padding:2.5rem 2rem 1.5rem;border-bottom:3px double var(--gold);background:linear-gradient(180deg,rgba(184,134,11,.07) 0%,transparent 100%);}
+.header-kamon{font-size:2.5rem;display:block;margin-bottom:.4rem;animation:float 4s ease-in-out infinite;}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+header h1{font-family:'Shippori Mincho',serif;font-size:clamp(1.5rem,4vw,2.5rem);font-weight:800;letter-spacing:.05em;}
+header h1 span{color:var(--red);}
+header p{margin-top:.4rem;font-size:.82rem;color:var(--gold);font-style:italic;letter-spacing:.1em;}
+
+.tabs{position:relative;z-index:10;display:flex;justify-content:center;padding:1.5rem 2rem 0;}
+.tab-btn{padding:.7rem 1.8rem;border:2px solid var(--gold);background:transparent;font-family:'Shippori Mincho',serif;font-size:.88rem;font-weight:600;color:var(--gold);cursor:pointer;letter-spacing:.04em;transition:all .2s;}
+.tab-btn:first-child{border-radius:4px 0 0 4px;}
+.tab-btn:last-child{border-radius:0 4px 4px 0;border-left:none;}
+.tab-btn:nth-child(2){border-left:none;}
+.tab-btn.active{background:var(--gold);color:var(--paper);}
+.tab-btn:hover:not(.active){background:rgba(184,134,11,.1);}
+
+main{position:relative;z-index:10;max-width:900px;margin:0 auto;padding:2rem;}
+.tab-content{display:none;}
+.tab-content.active{display:block;animation:fadeUp .3s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* character cards */
+.character-select{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem;}
+.char-card{border:2px solid transparent;border-radius:8px;padding:1.1rem;cursor:pointer;transition:all .25s;background:rgba(255,255,255,.5);backdrop-filter:blur(4px);}
+.char-card[data-char="ieyasu"]{border-color:rgba(44,62,80,.3);}
+.char-card[data-char="hideyoshi"]{border-color:rgba(139,37,0,.3);}
+.char-card.selected[data-char="ieyasu"]{border-color:var(--ieyasu);background:rgba(44,62,80,.08);box-shadow:0 4px 20px rgba(44,62,80,.2);}
+.char-card.selected[data-char="hideyoshi"]{border-color:var(--hideyoshi);background:rgba(139,37,0,.06);box-shadow:0 4px 20px rgba(139,37,0,.2);}
+.char-emoji{font-size:2.2rem;display:block;margin-bottom:.4rem;}
+.char-name{font-family:'Shippori Mincho',serif;font-size:.95rem;font-weight:700;margin-bottom:.2rem;}
+.char-card[data-char="ieyasu"] .char-name{color:var(--ieyasu);}
+.char-card[data-char="hideyoshi"] .char-name{color:var(--hideyoshi);}
+.char-role{font-size:.78rem;color:#666;font-style:italic;}
+
+/* chat */
+.chat-window{background:rgba(255,255,255,.6);backdrop-filter:blur(8px);border:1px solid rgba(184,134,11,.3);border-radius:8px;height:380px;overflow-y:auto;padding:1.25rem;margin-bottom:.75rem;scroll-behavior:smooth;}
+.chat-window::-webkit-scrollbar{width:4px;}
+.chat-window::-webkit-scrollbar-thumb{background:var(--gold);border-radius:2px;}
+.message{margin-bottom:1.1rem;animation:fadeUp .3s ease;}
+.message.user{text-align:right;}
+.bubble{display:inline-block;max-width:75%;padding:.65rem .95rem;border-radius:12px;font-size:.88rem;line-height:1.6;text-align:left;}
+.message.user .bubble{background:var(--ink);color:var(--paper);border-radius:12px 12px 2px 12px;}
+.message.bot[data-char="ieyasu"] .bubble{background:rgba(44,62,80,.1);border-left:3px solid var(--ieyasu);border-radius:12px 12px 12px 2px;}
+.message.bot[data-char="hideyoshi"] .bubble{background:rgba(139,37,0,.07);border-left:3px solid var(--hideyoshi);border-radius:12px 12px 12px 2px;}
+.msg-label{font-size:.7rem;font-weight:600;letter-spacing:.06em;margin-bottom:.25rem;opacity:.7;}
+.message.bot[data-char="ieyasu"] .msg-label{color:var(--ieyasu);}
+.message.bot[data-char="hideyoshi"] .msg-label{color:var(--hideyoshi);}
+.chat-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--gold);opacity:.55;gap:.4rem;}
+.chat-empty span{font-size:2rem;}
+.chat-empty p{font-size:.82rem;font-style:italic;}
+.suggestions{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.75rem;}
+.suggestion-chip{padding:.3rem .7rem;background:rgba(184,134,11,.1);border:1px solid rgba(184,134,11,.3);border-radius:20px;font-size:.76rem;color:var(--gold);cursor:pointer;font-family:'Noto Serif JP',serif;transition:all .2s;}
+.suggestion-chip:hover{background:rgba(184,134,11,.2);border-color:var(--gold);}
+.chat-input-row{display:flex;gap:.65rem;}
+.chat-input{flex:1;padding:.7rem .9rem;border:1px solid rgba(184,134,11,.4);border-radius:6px;background:rgba(255,255,255,.7);font-family:'Noto Serif JP',serif;font-size:.88rem;color:var(--ink);outline:none;transition:border-color .2s;}
+.chat-input:focus{border-color:var(--gold);}
+.send-btn{padding:.7rem 1.3rem;background:var(--ink);color:var(--paper);border:none;border-radius:6px;font-family:'Shippori Mincho',serif;font-size:.88rem;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.send-btn:hover{background:var(--gold);}
+.send-btn:disabled{opacity:.45;cursor:not-allowed;}
+.toolbar{display:flex;justify-content:flex-end;margin-bottom:.4rem;}
+.clear-btn{padding:.3rem .7rem;background:transparent;border:1px solid rgba(150,130,100,.35);border-radius:4px;font-size:.73rem;color:#888;cursor:pointer;font-family:'DM Mono',monospace;transition:all .2s;}
+.clear-btn:hover{border-color:var(--red);color:var(--red);}
+
+/* upload */
+.upload-area{border:2px dashed rgba(184,134,11,.5);border-radius:10px;padding:2.5rem 2rem;text-align:center;background:rgba(255,255,255,.4);cursor:pointer;transition:all .25s;margin-bottom:1.25rem;}
+.upload-area:hover,.upload-area.drag-over{border-color:var(--gold);background:rgba(184,134,11,.06);}
+.upload-icon{font-size:2.5rem;display:block;margin-bottom:.75rem;}
+.upload-area h3{font-family:'Shippori Mincho',serif;font-size:1.05rem;font-weight:700;margin-bottom:.4rem;}
+.upload-area p{font-size:.8rem;color:#888;font-family:'DM Mono',monospace;}
+
+/* file list */
+.file-row{display:flex;align-items:center;gap:.6rem;padding:.5rem .75rem;background:rgba(255,255,255,.6);border:1px solid rgba(184,134,11,.2);border-radius:6px;font-family:'DM Mono',monospace;font-size:.8rem;}
+.file-row-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.file-row-size{color:#888;white-space:nowrap;}
+.file-row-status{font-size:.9rem;white-space:nowrap;}
+.file-row-status.ok{color:var(--green);}
+.file-row-status.err{color:var(--red);}
+.file-row-status.pending{color:var(--gold);}
+
+/* action btn */
+.action-btn{width:100%;padding:.85rem;background:var(--ink);color:var(--paper);border:none;border-radius:6px;font-family:'Shippori Mincho',serif;font-size:.95rem;font-weight:700;cursor:pointer;transition:all .25s;letter-spacing:.04em;margin-bottom:1.25rem;}
+.action-btn:hover{background:var(--gold);}
+.action-btn:disabled{opacity:.45;cursor:not-allowed;}
+
+/* progress */
+.progress-bar{width:100%;height:4px;background:rgba(184,134,11,.2);border-radius:2px;margin-bottom:.9rem;overflow:hidden;display:none;}
+.progress-bar.visible{display:block;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:2px;animation:prog 1.5s infinite;width:40%;}
+@keyframes prog{0%{margin-left:-40%}100%{margin-left:110%}}
+
+/* result card */
+.result-card{background:rgba(255,255,255,.6);border:1px solid rgba(184,134,11,.3);border-radius:8px;overflow:hidden;margin-bottom:.75rem;}
+.result-card-header{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;background:rgba(184,134,11,.06);border-bottom:1px solid rgba(184,134,11,.2);cursor:pointer;}
+.result-card-title{font-family:'DM Mono',monospace;font-size:.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;}
+.result-card-meta{display:flex;align-items:center;gap:.5rem;}
+.badge{padding:.15rem .5rem;border-radius:3px;font-size:.7rem;font-family:'DM Mono',monospace;font-weight:600;}
+.badge.ok{background:rgba(39,174,96,.15);color:var(--green);}
+.badge.error{background:rgba(192,57,43,.12);color:var(--red);}
+.copy-btn{padding:.3rem .7rem;background:transparent;border:1px solid var(--gold);border-radius:4px;font-size:.73rem;color:var(--gold);cursor:pointer;font-family:'DM Mono',monospace;transition:all .2s;}
+.copy-btn:hover{background:var(--gold);color:var(--paper);}
+.result-card-body{padding:1rem;display:none;}
+.result-card-body.open{display:block;}
+.transcript-text{font-family:'DM Mono',monospace;font-size:.83rem;line-height:1.8;white-space:pre-wrap;color:var(--ink);}
+.result-error{font-family:'DM Mono',monospace;font-size:.82rem;color:var(--red);}
+.summary-bar{display:flex;gap:1.5rem;padding:.75rem 1rem;background:rgba(184,134,11,.06);border:1px solid rgba(184,134,11,.25);border-radius:8px;margin-bottom:1rem;font-family:'DM Mono',monospace;font-size:.82rem;}
+.summary-bar span{color:#555;}
+.summary-bar b{color:var(--ink);}
+
+/* error */
+.error-msg{background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.3);border-radius:6px;padding:.65rem .9rem;font-size:.83rem;color:var(--red);margin:.4rem 0;font-family:'DM Mono',monospace;display:none;}
+
+/* loading dots */
+.loading-dots{display:inline-flex;gap:4px;padding:.4rem 0;}
+.loading-dots span{width:6px;height:6px;background:var(--gold);border-radius:50%;animation:dot 1.2s infinite;}
+.loading-dots span:nth-child(2){animation-delay:.2s;}
+.loading-dots span:nth-child(3){animation-delay:.4s;}
+@keyframes dot{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+
+/* manga */
+.manga-form{background:rgba(255,255,255,.55);border:1px solid rgba(184,134,11,.3);border-radius:8px;padding:1.5rem;margin-bottom:1.25rem;}
+.form-label{font-family:'Shippori Mincho',serif;font-size:.88rem;font-weight:700;color:var(--ink);margin-bottom:.4rem;display:block;}
+.form-sub{font-size:.76rem;color:#888;font-family:'DM Mono',monospace;margin-bottom:.65rem;display:block;}
+.manga-textarea{width:100%;min-height:90px;padding:.75rem .9rem;border:1px solid rgba(184,134,11,.4);border-radius:6px;background:rgba(255,255,255,.7);font-family:'Noto Serif JP',serif;font-size:.88rem;color:var(--ink);outline:none;resize:vertical;transition:border-color .2s;margin-bottom:1rem;}
+.manga-textarea:focus{border-color:var(--gold);}
+.manga-controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:1rem;}
+.ctrl-group{display:flex;flex-direction:column;gap:.3rem;}
+.ctrl-group label{font-size:.78rem;font-weight:600;color:var(--gold);font-family:'DM Mono',monospace;}
+.ctrl-select{padding:.5rem .7rem;border:1px solid rgba(184,134,11,.4);border-radius:5px;background:rgba(255,255,255,.7);font-family:'Noto Serif JP',serif;font-size:.85rem;color:var(--ink);outline:none;}
+.ctrl-range-row{display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;border:1px solid rgba(184,134,11,.4);border-radius:5px;background:rgba(255,255,255,.7);}
+input[type=range]{flex:1;accent-color:var(--gold);}
+.manga-examples{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.9rem;}
+.manga-output{display:none;}
+.manga-output.visible{display:block;animation:fadeUp .4s ease;}
+.manga-title-box{text-align:center;padding:1rem;margin-bottom:1.25rem;border-bottom:2px double var(--gold);}
+.manga-title-box h2{font-family:'Shippori Mincho',serif;font-size:1.5rem;font-weight:800;color:var(--ink);}
+.manga-moral{font-size:.85rem;color:var(--gold);font-style:italic;margin-top:.4rem;}
+.panel-card{background:rgba(255,255,255,.65);border:2px solid var(--ink);border-radius:4px;overflow:hidden;box-shadow:4px 4px 0 rgba(26,18,9,.15);position:relative;margin-bottom:1rem;}
+.panel-num{position:absolute;top:.5rem;left:.5rem;background:var(--ink);color:var(--paper);font-family:'DM Mono',monospace;font-size:.72rem;padding:.15rem .4rem;border-radius:2px;}
+.panel-body{padding:1rem;}
+.panel-scene{font-size:.78rem;color:#666;font-style:italic;margin-bottom:.6rem;font-family:'DM Mono',monospace;line-height:1.5;border-left:2px solid rgba(184,134,11,.4);padding-left:.6rem;}
+.panel-visual{font-size:.8rem;color:#444;margin-bottom:.75rem;line-height:1.5;}
+.panel-dialogues{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.6rem;}
+.dialogue-line{display:flex;gap:.5rem;align-items:flex-start;}
+.dlg-speaker{font-family:'Shippori Mincho',serif;font-size:.75rem;font-weight:700;white-space:nowrap;padding-top:.05rem;}
+.dlg-speaker.ieyasu{color:var(--ieyasu);}
+.dlg-speaker.hideyoshi{color:var(--hideyoshi);}
+.dlg-speaker.other{color:#555;}
+.dlg-text{font-size:.85rem;line-height:1.55;background:rgba(255,255,255,.7);border-radius:4px;padding:.3rem .55rem;border:1px solid rgba(180,160,100,.3);flex:1;}
+.panel-footer{display:flex;justify-content:space-between;align-items:center;margin-top:.5rem;padding-top:.5rem;border-top:1px dashed rgba(180,160,100,.35);}
+.panel-expression{font-size:.73rem;color:#888;font-style:italic;font-family:'DM Mono',monospace;}
+.panel-sfx{font-family:'Shippori Mincho',serif;font-size:.95rem;font-weight:800;color:var(--red);}
+.manga-export-btn{display:block;width:100%;padding:.7rem;background:transparent;color:var(--gold);border:1px solid var(--gold);border-radius:6px;font-family:'Shippori Mincho',serif;font-size:.88rem;font-weight:700;cursor:pointer;transition:all .2s;margin-top:1.25rem;text-align:center;}
+.manga-export-btn:hover{background:var(--gold);color:var(--paper);}
+
+footer{position:relative;z-index:10;text-align:center;padding:1.5rem;font-size:.73rem;color:rgba(180,140,60,.55);font-family:'DM Mono',monospace;border-top:1px solid rgba(184,134,11,.2);margin-top:2rem;}
+@media(max-width:600px){.character-select{grid-template-columns:1fr 1fr;}.tab-btn{padding:.6rem 1rem;font-size:.8rem;}.manga-controls{grid-template-columns:1fr 1fr;}main{padding:1rem;}}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="header-kamon">⛩️</span>
+  <h1>Japan <span>AI</span> Guide</h1>
+  <p>AI活用プロジェクト — Smart Grid Home 2026</p>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('chat',this)">🗾 Character Chat</button>
+  <button class="tab-btn" onclick="switchTab('transcribe',this)">🎙️ Audio Transcription</button>
+  <button class="tab-btn" onclick="switchTab('manga',this)">📖 Manga Storyboard</button>
+</div>
+
+<main>
+
+<!-- TAB 1: CHARACTER CHAT -->
+<div class="tab-content active" id="tab-chat">
+  <div class="character-select">
+    <div class="char-card selected" data-char="ieyasu" onclick="selectChar('ieyasu')">
+      <span class="char-emoji">⚔️</span>
+      <div class="char-name">Tokugawa Ieyasu</div>
+      <div class="char-role">Law &amp; Rules Expert</div>
+    </div>
+    <div class="char-card" data-char="hideyoshi" onclick="selectChar('hideyoshi')">
+      <span class="char-emoji">🌸</span>
+      <div class="char-name">Toyotomi Hideyoshi</div>
+      <div class="char-role">Manners &amp; Social Skills</div>
+    </div>
+  </div>
+  <div class="suggestions" id="chat-suggestions"></div>
+  <div class="toolbar"><button class="clear-btn" onclick="clearChat()">🗑 Clear</button></div>
+  <div class="chat-window" id="chat-window">
+    <div class="chat-empty" id="chat-empty"><span>⛩️</span><p>Select a character and ask your question</p></div>
+  </div>
+  <div class="error-msg" id="chat-error"></div>
+  <div class="chat-input-row">
+    <input class="chat-input" id="chat-input" type="text"
+      placeholder="Ask about living in Japan... (English or Japanese)"
+      onkeydown="if(event.key==='Enter')sendMessage()"/>
+    <button class="send-btn" id="send-btn" onclick="sendMessage()">Send 送信</button>
+  </div>
+</div>
+
+<!-- TAB 2: AUDIO TRANSCRIPTION (bulk) -->
+<div class="tab-content" id="tab-transcribe">
+
+  <div class="upload-area" id="upload-area"
+       onclick="document.getElementById('audio-file-input').click()"
+       ondragover="event.preventDefault();this.classList.add('drag-over')"
+       ondragleave="this.classList.remove('drag-over')"
+       ondrop="handleDrop(event)">
+    <span class="upload-icon">🎵</span>
+    <h3>ফাইল এখানে Drop করুন অথবা Click করে Select করুন</h3>
+    <p>MP3 · WAV · M4A · OGG · FLAC · WEBM · MP4</p>
+    <p style="margin-top:.5rem;color:#aaa;font-size:.77rem;">একটা বা একসাথে অনেকগুলো ফাইল দেওয়া যাবে (সর্বোচ্চ ৫০টা)</p>
+  </div>
+  <input type="file" id="audio-file-input" accept="audio/*,video/mp4" multiple onchange="handleFileSelect(event)">
+
+  <!-- File queue list -->
+  <div id="file-list-wrap" style="display:none;margin-bottom:1rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+      <span id="file-count-lbl" style="font-family:'DM Mono',monospace;font-size:.8rem;color:var(--gold);"></span>
+      <button class="clear-btn" onclick="clearFiles()">✕ সব Clear</button>
+    </div>
+    <div id="file-list" style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:.3rem;"></div>
+  </div>
+
+  <div class="progress-bar" id="t-progress"><div class="progress-fill"></div></div>
+  <div id="t-status" style="display:none;font-family:'DM Mono',monospace;font-size:.8rem;color:var(--gold);margin-bottom:.6rem;text-align:center;"></div>
+  <div class="error-msg" id="t-error"></div>
+  <button class="action-btn" id="transcribe-btn" onclick="transcribeAudio()" disabled>🎙️ Transcribe with Gemini AI</button>
+
+  <!-- Results -->
+  <div id="bulk-results" style="display:none;">
+    <div class="summary-bar" id="bulk-summary-bar"></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+      <button class="copy-btn" onclick="downloadAllTranscripts()" style="font-size:.8rem;padding:.4rem .9rem;">⬇️ Download All (.txt)</button>
+    </div>
+    <div id="bulk-items"></div>
+  </div>
+</div>
+
+<!-- TAB 3: MANGA STORYBOARD -->
+<div class="tab-content" id="tab-manga">
+  <div class="manga-form">
+    <label class="form-label">📝 Situation / Scene</label>
+    <span class="form-sub">Describe what the foreigner is doing wrong (or struggling with)</span>
+    <textarea class="manga-textarea" id="manga-situation"
+      placeholder="e.g. A foreigner throws burnable trash on the wrong day and gets scolded by neighbors..."></textarea>
+    <div class="manga-examples" id="manga-examples"></div>
+    <div class="manga-controls">
+      <div class="ctrl-group">
+        <label>Character</label>
+        <select class="ctrl-select" id="manga-char">
+          <option value="ieyasu">⚔️ Tokugawa Ieyasu (Law)</option>
+          <option value="hideyoshi">🌸 Toyotomi Hideyoshi (Manners)</option>
+        </select>
+      </div>
+      <div class="ctrl-group">
+        <label>Dialogue Language</label>
+        <select class="ctrl-select" id="manga-lang">
+          <option value="en">English</option>
+          <option value="ja">Japanese + English</option>
+        </select>
+      </div>
+      <div class="ctrl-group">
+        <label>Panels: <span id="panel-count-label">4</span></label>
+        <div class="ctrl-range-row">
+          <input type="range" min="3" max="6" value="4" id="manga-panels"
+            oninput="document.getElementById('panel-count-label').textContent=this.value">
+        </div>
+      </div>
+    </div>
+    <div class="progress-bar" id="m-progress"><div class="progress-fill"></div></div>
+    <div class="error-msg" id="m-error"></div>
+    <button class="action-btn" onclick="generateManga()">📖 Generate Manga Storyboard</button>
+  </div>
+
+  <div class="manga-output" id="manga-output">
+    <div class="manga-title-box">
+      <h2 id="manga-title"></h2>
+      <div class="manga-moral" id="manga-moral"></div>
+    </div>
+    <div id="panels-grid"></div>
+    <button class="manga-export-btn" onclick="exportMangaText()">⬇️ Export as Text Script</button>
+  </div>
+</div>
+
+</main>
+<footer>Powered by Gemini 2.5 Flash · Smart Grid Home · AI活用プロジェクト 2026</footer>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let selectedChar = 'ieyasu';
+let chatHistory  = [];
+let selectedFiles = [];  // File[]
+let lastMangaData = null;
+
+const CHAT_SUGGESTIONS = {
+  ieyasu:   ['How do I sort garbage?','Can I smoke on the street?','Work rules on student visa?','Noise laws?'],
+  hideyoshi:['How do I greet my neighbors?','Train etiquette tips?','When should I bow?','Gift-giving customs?']
+};
+const MANGA_EXAMPLES = [
+  'Foreigner plays loud music at midnight',
+  'Foreigner misses trash day & leaves bags outside',
+  'Foreigner eats food while walking on busy street',
+  'Foreigner forgets to remove shoes indoors',
+  'Foreigner talks loudly on the phone on the train',
+];
+
+// ── Helpers ────────────────────────────────────────────────────────────
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
+function showErr(id,msg){const el=document.getElementById(id);el.textContent='⚠️ '+msg;el.style.display='block';}
+function hideErr(id){document.getElementById(id).style.display='none';}
+
+// ── Tabs ───────────────────────────────────────────────────────────────
+function switchTab(tab,btn){
+  document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Chat ───────────────────────────────────────────────────────────────
+function selectChar(c){
+  selectedChar=c;
+  document.querySelectorAll('.char-card').forEach(el=>el.classList.remove('selected'));
+  document.querySelector(`.char-card[data-char="${c}"]`).classList.add('selected');
+  clearChat(); buildSuggestions();
+}
+function buildSuggestions(){
+  document.getElementById('chat-suggestions').innerHTML=
+    CHAT_SUGGESTIONS[selectedChar].map(q=>`<button class="suggestion-chip" onclick="useQ(this.textContent)">${q}</button>`).join('');
+}
+function useQ(t){document.getElementById('chat-input').value=t;sendMessage();}
+function clearChat(){
+  chatHistory=[];
+  document.getElementById('chat-window').innerHTML=`<div class="chat-empty" id="chat-empty"><span>⛩️</span><p>Select a character and ask your question</p></div>`;
+  hideErr('chat-error');
+}
+function addMsg(role,content,char){
+  const win=document.getElementById('chat-window');
+  document.getElementById('chat-empty')?.remove();
+  const NAMES={ieyasu:'Tokugawa Ieyasu ⚔️',hideyoshi:'Toyotomi Hideyoshi 🌸'};
+  const div=document.createElement('div');
+  div.className=`message ${role}`;if(char)div.dataset.char=char;
+  div.innerHTML=role==='user'
+    ?`<div class="bubble">${esc(content)}</div>`
+    :`<div class="msg-label">${NAMES[char]||char}</div><div class="bubble">${esc(content)}</div>`;
+  win.appendChild(div);win.scrollTop=win.scrollHeight;
+}
+function showDots(){
+  const win=document.getElementById('chat-window');
+  const d=document.createElement('div');
+  d.className='message bot';d.id='ldots';d.dataset.char=selectedChar;
+  d.innerHTML=`<div class="bubble"><div class="loading-dots"><span></span><span></span><span></span></div></div>`;
+  win.appendChild(d);win.scrollTop=win.scrollHeight;
+}
+async function sendMessage(){
+  const inp=document.getElementById('chat-input');
+  const btn=document.getElementById('send-btn');
+  const msg=inp.value.trim();if(!msg)return;
+  hideErr('chat-error');inp.value='';btn.disabled=true;
+  addMsg('user',msg);showDots();
+  try{
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({character:selectedChar,message:msg,history:chatHistory})});
+    document.getElementById('ldots')?.remove();
+    if(!r.ok){const e=await r.json();throw new Error(e.detail||'API error');}
+    const d=await r.json();
+    addMsg('bot',d.reply,selectedChar);
+    chatHistory.push({role:'user',content:msg},{role:'assistant',content:d.reply});
+  }catch(e){document.getElementById('ldots')?.remove();showErr('chat-error',e.message);}
+  finally{btn.disabled=false;inp.focus();}
+}
+
+// ── File Upload ────────────────────────────────────────────────────────
+function handleFileSelect(ev){
+  const files=Array.from(ev.target.files);
+  if(files.length) addFiles(files);
+}
+function handleDrop(ev){
+  ev.preventDefault();
+  document.getElementById('upload-area').classList.remove('drag-over');
+  const files=Array.from(ev.dataTransfer.files).filter(f=>f.type.startsWith('audio/')||f.name.match(/\.(mp4|m4a)$/i));
+  if(files.length) addFiles(files);
+}
+function addFiles(newFiles){
+  // Merge, avoid duplicates by name
+  const existing=new Set(selectedFiles.map(f=>f.name));
+  newFiles.forEach(f=>{if(!existing.has(f.name))selectedFiles.push(f);});
+  if(selectedFiles.length>50){selectedFiles=selectedFiles.slice(0,50);alert('Maximum 50 files. Extra files removed.');}
+  renderFileList();
+  document.getElementById('transcribe-btn').disabled=false;
+  document.getElementById('bulk-results').style.display='none';
+  hideErr('t-error');
+}
+function clearFiles(){
+  selectedFiles=[];
+  document.getElementById('audio-file-input').value='';
+  document.getElementById('file-list-wrap').style.display='none';
+  document.getElementById('transcribe-btn').disabled=true;
+  document.getElementById('bulk-results').style.display='none';
+}
+function renderFileList(){
+  const wrap=document.getElementById('file-list-wrap');
+  const list=document.getElementById('file-list');
+  const lbl=document.getElementById('file-count-lbl');
+  lbl.textContent=`${selectedFiles.length} file${selectedFiles.length>1?'s':''} selected`;
+  list.innerHTML=selectedFiles.map((f,i)=>`
+    <div class="file-row" id="frow-${i}">
+      <span>🎵</span>
+      <span class="file-row-name">${f.name}</span>
+      <span class="file-row-size">${(f.size/1024/1024).toFixed(1)} MB</span>
+      <span class="file-row-status pending" id="fstatus-${i}">⏳ Waiting</span>
+    </div>`).join('');
+  wrap.style.display='block';
+}
+
+// ── Transcription ──────────────────────────────────────────────────────
+async function transcribeAudio(){
+  if(!selectedFiles.length)return;
+  const btn=document.getElementById('transcribe-btn');
+  const prog=document.getElementById('t-progress');
+  const statusEl=document.getElementById('t-status');
+  btn.disabled=true;btn.textContent='⏳ Processing...';
+  prog.classList.add('visible');
+  statusEl.style.display='block';
+  hideErr('t-error');
+  document.getElementById('bulk-results').style.display='none';
+
+  const isSingle=selectedFiles.length===1;
+
+  try{
+    let results=[];
+
+    if(isSingle){
+      // Single file
+      statusEl.textContent=`Processing: ${selectedFiles[0].name}`;
+      document.getElementById('fstatus-0').textContent='🔄 Processing...';
+      const fd=new FormData();fd.append('file',selectedFiles[0]);
+      const r=await fetch('/api/transcribe',{method:'POST',body:fd});
+      if(!r.ok){const e=await r.json();throw new Error(e.detail);}
+      const d=await r.json();
+      results=[{filename:d.filename,status:'ok',transcript:d.transcript,size_mb:0,error:''}];
+      document.getElementById('fstatus-0').className='file-row-status ok';
+      document.getElementById('fstatus-0').textContent='✅ Done';
+    } else {
+      // Bulk
+      const fd=new FormData();
+      selectedFiles.forEach(f=>fd.append('files',f));
+      statusEl.textContent=`Uploading ${selectedFiles.length} files to Gemini...`;
+      const r=await fetch('/api/transcribe/bulk',{method:'POST',body:fd});
+      if(!r.ok){const e=await r.json();throw new Error(e.detail);}
+      const d=await r.json();
+      results=d.results;
+      // Update file row statuses
+      results.forEach((res,i)=>{
+        const el=document.getElementById('fstatus-'+i);
+        if(el){
+          el.className='file-row-status '+(res.status==='ok'?'ok':'err');
+          el.textContent=res.status==='ok'?'✅ Done':'❌ Error';
+        }
+      });
+    }
+
+    renderBulkResults(results);
+
+  }catch(e){
+    showErr('t-error',e.message);
+    selectedFiles.forEach((_,i)=>{
+      const el=document.getElementById('fstatus-'+i);
+      if(el){el.className='file-row-status err';el.textContent='❌ Failed';}
+    });
+  }finally{
+    btn.disabled=false;
+    btn.textContent='🎙️ Transcribe with Gemini AI';
+    prog.classList.remove('visible');
+    statusEl.style.display='none';
+  }
+}
+
+function renderBulkResults(results){
+  const container=document.getElementById('bulk-results');
+  const summaryBar=document.getElementById('bulk-summary-bar');
+  const items=document.getElementById('bulk-items');
+
+  const ok=results.filter(r=>r.status==='ok').length;
+  const fail=results.length-ok;
+  summaryBar.innerHTML=`
+    <span>Total: <b>${results.length}</b></span>
+    <span style="color:var(--green)">✅ Success: <b>${ok}</b></span>
+    ${fail>0?`<span style="color:var(--red)">❌ Failed: <b>${fail}</b></span>`:''}`;
+
+  items.innerHTML=results.map((r,i)=>`
+    <div class="result-card">
+      <div class="result-card-header" onclick="toggleResult(${i})">
+        <span class="result-card-title">🎵 ${r.filename}</span>
+        <div class="result-card-meta">
+          <span class="badge ${r.status==='ok'?'ok':'error'}">${r.status==='ok'?'✅ OK':'❌ Error'}</span>
+          ${r.status==='ok'?`<button class="copy-btn" onclick="event.stopPropagation();copyResultText(${i},this)">Copy 📋</button>`:''}
+        </div>
+      </div>
+      <div class="result-card-body" id="rbody-${i}">
+        ${r.status==='ok'
+          ?`<div class="transcript-text" id="rtext-${i}">${r.transcript}</div>`
+          :`<div class="result-error">Error: ${r.error}</div>`}
+      </div>
+    </div>`).join('');
+
+  // Store results for download
+  window._bulkResults=results;
+  container.style.display='block';
+}
+
+function toggleResult(i){
+  const body=document.getElementById('rbody-'+i);
+  body.classList.toggle('open');
+}
+
+function copyResultText(i,btn){
+  const el=document.getElementById('rtext-'+i);
+  if(el) navigator.clipboard.writeText(el.textContent).then(()=>{
+    btn.textContent='Copied! ✅';setTimeout(()=>btn.textContent='Copy 📋',2000);
+  });
+}
+
+function downloadAllTranscripts(){
+  const results=window._bulkResults||[];
+  if(!results.length)return;
+  let txt='';
+  results.forEach(r=>{
+    txt+=`${'='.repeat(60)}\n`;
+    txt+=`File: ${r.filename}\n`;
+    txt+=`Status: ${r.status}\n`;
+    txt+=`${'='.repeat(60)}\n`;
+    txt+=r.status==='ok'?r.transcript:`[ERROR] ${r.error}`;
+    txt+='\n\n';
+  });
+  const a=document.createElement('a');
+  a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(txt);
+  a.download='transcripts_all.txt';a.click();
+}
+
+// ── Manga ──────────────────────────────────────────────────────────────
+function buildMangaExamples(){
+  document.getElementById('manga-examples').innerHTML=
+    MANGA_EXAMPLES.map(e=>`<button class="suggestion-chip" onclick="document.getElementById('manga-situation').value='${e.replace(/'/g,"\\'")}';">${e}</button>`).join('');
+}
+async function generateManga(){
+  const situation=document.getElementById('manga-situation').value.trim();
+  if(!situation){showErr('m-error','Please describe a situation first.');return;}
+  const char=document.getElementById('manga-char').value;
+  const lang=document.getElementById('manga-lang').value;
+  const panels=parseInt(document.getElementById('manga-panels').value);
+  hideErr('m-error');
+  document.getElementById('m-progress').classList.add('visible');
+  document.getElementById('manga-output').classList.remove('visible');
+  document.querySelector('.action-btn[onclick="generateManga()"]').disabled=true;
+  try{
+    const r=await fetch('/api/manga',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({situation,character:char,language:lang,panels})});
+    if(!r.ok){const e=await r.json();throw new Error(e.detail||'Failed');}
+    const d=await r.json();
+    lastMangaData=d;renderManga(d,char);
+  }catch(e){showErr('m-error',e.message);}
+  finally{document.getElementById('m-progress').classList.remove('visible');document.querySelector('.action-btn[onclick="generateManga()"]').disabled=false;}
+}
+function speakerClass(name){if(/ieyasu/i.test(name))return 'ieyasu';if(/hideyoshi/i.test(name))return 'hideyoshi';return 'other';}
+function renderManga(d,char){
+  document.getElementById('manga-title').textContent=d.title||'Untitled';
+  document.getElementById('manga-moral').textContent=d.moral?'📌 '+d.moral:'';
+  const grid=document.getElementById('panels-grid');grid.innerHTML='';
+  (d.panels||[]).forEach((p,i)=>{
+    const dlg=(p.dialogue||[]).map(dl=>`<div class="dialogue-line"><span class="dlg-speaker ${speakerClass(dl.speaker)}">${esc(dl.speaker)}:</span><span class="dlg-text">${esc(dl.text)}</span></div>`).join('');
+    const card=document.createElement('div');card.className='panel-card';
+    card.innerHTML=`<div class="panel-num">Panel ${p.panel||i+1}</div><div class="panel-body">
+      <div class="panel-scene">🎬 ${esc(p.scene||'')}</div>
+      ${p.characters?`<div class="panel-visual">👤 ${esc(p.characters)}</div>`:''}
+      <div class="panel-dialogues">${dlg}</div>
+      <div class="panel-footer"><span class="panel-expression">${p.expression?'🎭 '+esc(p.expression):''}</span><span class="panel-sfx">${p.sfx||''}</span></div>
+    </div>`;
+    grid.appendChild(card);
+  });
+  document.getElementById('manga-output').classList.add('visible');
+}
+function exportMangaText(){
+  if(!lastMangaData)return;
+  const d=lastMangaData;
+  let txt=`MANGA STORYBOARD\n${'='.repeat(40)}\nTitle: ${d.title}\nLesson: ${d.moral}\n\n`;
+  (d.panels||[]).forEach(p=>{
+    txt+=`--- Panel ${p.panel} ---\nScene: ${p.scene}\n`;
+    if(p.characters)txt+=`Characters: ${p.characters}\n`;
+    (p.dialogue||[]).forEach(dl=>txt+=`  ${dl.speaker}: "${dl.text}"\n`);
+    if(p.expression)txt+=`Expression: ${p.expression}\n`;
+    if(p.sfx)txt+=`SFX: ${p.sfx}\n`;txt+='\n';
+  });
+  const a=document.createElement('a');a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(txt);a.download='manga_storyboard.txt';a.click();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+buildSuggestions();buildMangaExamples();
+</script>
+</body>
+</html>
