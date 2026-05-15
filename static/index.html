@@ -255,6 +255,17 @@ footer{position:relative;z-index:10;text-align:center;padding:1.25rem;font-size:
   </div>
 
   <div class="error-msg" id="t-error"></div>
+  <!-- Options row -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;padding:.65rem .9rem;background:rgba(255,255,255,.5);border:1px solid rgba(184,134,11,.2);border-radius:6px;">
+    <div>
+      <span style="font-family:'Shippori Mincho',serif;font-size:.85rem;font-weight:700;">👤 Speaker Identification</span>
+      <span style="font-family:'DM Mono',monospace;font-size:.72rem;color:#888;margin-left:.5rem;">adds ~1-2 min per file</span>
+    </div>
+    <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;">
+      <input type="checkbox" id="speaker-toggle" checked style="accent-color:var(--gold);width:16px;height:16px;">
+      <span style="font-family:'DM Mono',monospace;font-size:.78rem;color:var(--gold);">Enabled</span>
+    </label>
+  </div>
   <button class="action-btn" id="transcribe-btn" onclick="startTranscription()" disabled>🎙️ Start Transcription — Whisper (Free Local)</button>
 
   <!-- Real-time progress -->
@@ -453,8 +464,11 @@ function renderFileList(){
 
 // ── SSE Progress ───────────────────────────────────────────────────────────────
 function setProg(pct,title,info){
-  document.getElementById('prog-fill').style.width=Math.min(100,pct)+'%';
-  document.getElementById('prog-pct').textContent=Math.round(pct)+'%';
+  if(pct!==undefined && !isNaN(pct)){
+    const p=Math.min(100,Math.max(0,pct));
+    document.getElementById('prog-fill').style.width=p+'%';
+    document.getElementById('prog-pct').textContent=Math.round(p)+'%';
+  }
   if(title!==undefined)document.getElementById('prog-title').textContent=title;
   if(info!==undefined)document.getElementById('prog-info').innerHTML=info;
 }
@@ -526,11 +540,13 @@ async function startTranscription(){
   allResults=[];
   selectedFiles.forEach((_,i)=>setFStatus(i,'waiting','⏳ Waiting'));
 
+  const speakerEnabled=document.getElementById('speaker-toggle').checked;
   const fd=new FormData();
   selectedFiles.forEach(f=>fd.append('files',f));
 
   try{
-    const response=await fetch('/api/transcribe/stream',{method:'POST',body:fd});
+    const url='/api/transcribe/stream?speaker_id='+speakerEnabled;
+    const response=await fetch(url,{method:'POST',body:fd});
     if(!response.ok){const e=await response.json();throw new Error(e.detail);}
     const reader=response.body.getReader();
     const decoder=new TextDecoder();

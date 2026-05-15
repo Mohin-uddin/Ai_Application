@@ -32,7 +32,7 @@ else:
     print("⚠️  GEMINI_API_KEY not set — Chat & Manga disabled")
 
 # ── faster-whisper (FREE, local, 4-5x faster) ─────────────────────────────────
-WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
+WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "small")  # small = best balance of speed/accuracy
 # Options: tiny | base | small | medium | large-v3
 # larger = more accurate but slower & needs more RAM
 # Recommended: base (fast) or small (balanced)
@@ -75,7 +75,7 @@ def get_pyannote():
             from pyannote.audio import Pipeline
             _pyannote_pipeline = Pipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
-                use_auth_token=HF_TOKEN
+                token=HF_TOKEN
             )
             print("✅ pyannote speaker diarization ready")
         except Exception as e:
@@ -112,7 +112,7 @@ init_db()
 # ── FastAPI ───────────────────────────────────────────────────────────────────
 app = FastAPI(title="Japan AI Project", version="6.0.0")
 
-CHUNK_SECONDS  = 30
+CHUNK_SECONDS  = 60  # 60s chunks — fewer splits, faster overall
 ALLOWED_EXT    = {".mp3",".wav",".ogg",".m4a",".flac",".webm",".mp4",".aac"}
 MAX_PARALLEL   = int(os.getenv("MAX_PARALLEL_CHUNKS", "4"))
 # How many chunks to process simultaneously
@@ -226,19 +226,100 @@ def _voice_profile(audio_path: str) -> dict:
         return {"status": "error", "error": str(e)}
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  HELPER: Speaker diarization (pyannote — optional)
+#  HELPER: Speaker diarization (resemblyzer — fast, free, no token needed)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _diarize(audio_path: str) -> List[dict]:
-    pipe = get_pyannote()
-    if not pipe:
-        return []
+    """
+    Speaker diarization using resemblyzer + KMeans clustering.
+    Fast, free, no HuggingFace token required.
+    Returns: [{start, end, speaker}]
+    """
     try:
-        dz = pipe(audio_path)
-        return [{"start": round(t.start, 2), "end": round(t.end, 2), "speaker": spk}
-                for t, _, spk in dz.itertracks(yield_label=True)]
+        from resemblyzer import VoiceEncoder, preprocess_wav
+        from sklearn.cluster import KMeans
+        from pathlib import Path
+        import numpy as np
+        import librosa
+
+        # Load and preprocess audio
+        wav, sr = librosa.load(audio_path, sr=16000, mono=True)
+        if len(wav) < sr * 2:  # less than 2 seconds
+            return []
+
+        # Resemblyzer needs float32 numpy array at 16kHz
+        wav32 = wav.astype(np.float32)
+
+        encoder = VoiceEncoder("cpu")
+
+        # Split into 1.5-second windows with 0.75s step
+        window_sec = 1.5
+        step_sec   = 0.75
+        window_samples = int(window_sec * sr)
+        step_samples   = int(step_sec   * sr)
+
+        windows   = []
+        win_times = []
+        i = 0
+        while i + window_samples <= len(wav32):
+            windows.append(wav32[i : i + window_samples])
+            win_times.append(i / sr)
+            i += step_samples
+
+        if len(windows) < 2:
+            return []
+
+        # Embed each window
+        embeds = np.array([encoder.embed_utterance(w) for w in windows])
+
+        # Auto-detect number of speakers (2–5)
+        best_k, best_score = 2, -1
+        for k in range(2, min(6, len(windows))):
+            km = KMeans(n_clusters=k, random_state=42, n_init=10)
+            labels = km.fit_predict(embeds)
+            # Simple inertia-based heuristic
+            score = -km.inertia_
+            if score > best_score:
+                best_score = score
+                best_k = k
+            # Stop if adding speaker gives diminishing returns
+            if k > 2 and (-km.inertia_) < best_score * 0.85:
+                best_k = k - 1
+                break
+
+        km = KMeans(n_clusters=best_k, random_state=42, n_init=10)
+        labels = km.fit_predict(embeds)
+
+        # Convert window labels to segments
+        segments = []
+        if len(labels) == 0:
+            return []
+
+        cur_speaker = labels[0]
+        cur_start   = win_times[0]
+
+        for idx in range(1, len(labels)):
+            if labels[idx] != cur_speaker:
+                segments.append({
+                    "start":   round(cur_start, 2),
+                    "end":     round(win_times[idx], 2),
+                    "speaker": f"SPEAKER_{cur_speaker:02d}"
+                })
+                cur_speaker = labels[idx]
+                cur_start   = win_times[idx]
+
+        # Last segment
+        segments.append({
+            "start":   round(cur_start, 2),
+            "end":     round(len(wav32) / sr, 2),
+            "speaker": f"SPEAKER_{cur_speaker:02d}"
+        })
+
+        return segments
+
     except Exception as e:
         print(f"Diarization error: {e}")
+        import traceback; traceback.print_exc()
         return []
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -275,20 +356,27 @@ def _transcribe_chunk(chunk_idx: int, path: str, time_offset: float) -> dict:
         wm = get_whisper()
         segments_gen, info = wm.transcribe(
             path,
-            beam_size=5,
-            language=None,       # auto-detect
-            vad_filter=False,    # disabled — was filtering real speech
+            beam_size=1,
+            language=None,
+            vad_filter=False,           # keep all audio
+            condition_on_previous_text=False,
+            temperature=0.0,
         )
         segments = []
         full_text_parts = []
+        prev_text = ""
         for seg in segments_gen:
-            # Adjust timestamps by chunk offset
+            text = seg.text.strip()
+            # Skip hallucination: repeated identical phrases
+            if text == prev_text or (len(text) > 5 and full_text_parts.count(text) >= 3):
+                continue
+            prev_text = text
             segments.append({
                 "start": round(seg.start + time_offset, 2),
                 "end":   round(seg.end   + time_offset, 2),
-                "text":  seg.text.strip()
+                "text":  text
             })
-            full_text_parts.append(seg.text.strip())
+            full_text_parts.append(text)
 
         return {
             "idx":      chunk_idx,
@@ -393,7 +481,10 @@ async def chat(req: ChatRequest):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/api/transcribe/stream")
-async def transcribe_stream(files: List[UploadFile] = File(...)):
+async def transcribe_stream(
+    files: List[UploadFile] = File(...),
+    speaker_id: bool = True   # pass ?speaker_id=false to skip diarization
+):
     if len(files) > 50:
         raise HTTPException(400, "Max 50 files")
 
@@ -492,20 +583,8 @@ async def transcribe_stream(files: List[UploadFile] = File(...)):
                         header = f"\n[── Chunk {i+1}/{total} | {i*CHUNK_SECONDS//60:02d}:{i*CHUNK_SECONDS%60:02d} ──]\n"
                         all_text_parts.append(header + r.get("text", ""))
 
-                # ── Speaker diarization (optional) ───────────────────────
-                speakers = []
-                if HF_TOKEN and all_segs:
-                    yield _sse({"type":"status","file":fn,
-                                "message":"Running speaker diarization..."})
-                    try:
-                        speakers = await loop.run_in_executor(None, _diarize, tmp_path)
-                    except: pass
-
-                # ── Build final transcript ───────────────────────────────
-                if speakers:
-                    full_transcript = _merge_speakers(all_segs, speakers)
-                else:
-                    full_transcript = "\n".join(all_text_parts)
+                # ── Build transcript from Whisper FIRST ─────────────────
+                full_transcript = "\n".join(all_text_parts)
 
                 # ── Voice profiling ──────────────────────────────────────
                 yield _sse({"type":"status","file":fn,
@@ -517,13 +596,37 @@ async def transcribe_stream(files: List[UploadFile] = File(...)):
                             "message":"Extracting keywords..."})
                 keywords = await loop.run_in_executor(None, _extract_keywords, full_transcript)
 
-                # ── Save to SQLite + folder ──────────────────────────────
+                # ── Save Whisper transcript FIRST (guaranteed) ───────────
                 rec_id = await loop.run_in_executor(
                     None, _save_transcript, fn, full_transcript,
-                    speakers, vprofile, keywords, size_mb, total
+                    [], vprofile, keywords, size_mb, total
                 )
 
-                unique_speakers = list(dict.fromkeys(s["speaker"] for s in speakers))
+                # ── Speaker diarization (resemblyzer — optional) ──────────
+                unique_speakers = []
+                if all_segs and speaker_id:
+                    yield _sse({"type":"status","file":fn,
+                                "message":"Identifying speakers (resemblyzer)..."})
+                    try:
+                        speakers = await asyncio.wait_for(
+                            loop.run_in_executor(None, _diarize, tmp_path),
+                            timeout=120  # max 2 minutes
+                        )
+                        if speakers:
+                            full_transcript = _merge_speakers(all_segs, speakers)
+                            unique_speakers = list(dict.fromkeys(s["speaker"] for s in speakers))
+                            # Update DB with speaker labels
+                            with sqlite3.connect(DB_PATH) as conn:
+                                conn.execute(
+                                    "UPDATE transcripts SET transcript=?, speakers_json=? WHERE id=?",
+                                    (full_transcript, json.dumps(speakers, ensure_ascii=False), rec_id)
+                                )
+                                conn.commit()
+                    except asyncio.TimeoutError:
+                        yield _sse({"type":"status","file":fn,
+                                    "message":"Speaker ID timed out — Whisper transcript saved"})
+                    except Exception as e:
+                        print(f"Speaker ID error: {e}")
                 result = {
                     "filename":     fn,
                     "status":       "ok",
